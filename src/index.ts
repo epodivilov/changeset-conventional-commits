@@ -15,8 +15,8 @@ import {
 } from './utils';
 
 interface ChangesetConventionalConfig extends Config {
-  conventionalCommits: {
-    releaseRules: ReleaseRule[];
+  conventionalCommits?: {
+    releaseRules?: ReleaseRule[];
   };
 }
 
@@ -30,7 +30,7 @@ const conventionalCommitChangeset = async (
     (pkg) => !pkg.packageJson.private && Boolean(pkg.packageJson.version),
   );
   const changesetConfig = JSON.parse(fs.readFileSync(path.join(cwd, CHANGESET_CONFIG_LOCATION)).toString());
-  const { baseBranch = 'main', conventionalCommits } = changesetConfig as ChangesetConventionalConfig;
+  const { baseBranch = 'main', conventionalCommits = {} } = changesetConfig as ChangesetConventionalConfig;
 
   const commitsSinceBase = getCommitsSinceRef(baseBranch);
 
@@ -44,7 +44,7 @@ const conventionalCommitChangeset = async (
   const changesets = conventionalMessagesWithCommitsToChangesets(changelogMessagesWithAssociatedCommits, {
     ignoredFiles: options.ignoredFiles,
     packages,
-    releaseRules: conventionalCommits.releaseRules,
+    releaseRules: conventionalCommits?.releaseRules,
   });
 
   const currentChangesets = await readChangeset(cwd);
