@@ -1,6 +1,6 @@
 import { afterAll, beforeEach, describe, expect, it, jest } from '@jest/globals';
 
-import { conventionalMessagesWithCommitsToChangesets } from '.';
+import { conventionalMessagesWithCommitsToChangesets } from './index';
 
 // eslint-disable-next-line
 import childProcess from 'child_process';
@@ -133,6 +133,75 @@ describe('conventionalMessagesWithCommitsToChangesets', () => {
       {
         releases: [{ name: 'package2', type: 'major' }],
         summary: 'fix!: fix a bug',
+        packagesChanged: [{ dir: 'packages/package2', packageJson: { name: 'package2' } }],
+      },
+    ]);
+  });
+
+  it('should handle breaking changes with scope', () => {
+    const conventionalMessagesToCommits = [
+      {
+        commitHashes: ['hash1', 'hash2'],
+        changelogMessage: 'feat(scope): add new feature\nBREAKING CHANGE: something changed',
+      },
+      {
+        commitHashes: ['hash3', 'hash4'],
+        changelogMessage: 'fix(scope)!: fix a bug',
+      },
+    ];
+
+    const options = {
+      packages: [
+        { dir: 'packages/package1', packageJson: { name: 'package1' } },
+        { dir: 'packages/package2', packageJson: { name: 'package2' } },
+      ],
+    };
+
+    const result = conventionalMessagesWithCommitsToChangesets(conventionalMessagesToCommits, options);
+
+    expect(result).toEqual([
+      {
+        releases: [{ name: 'package1', type: 'major' }],
+        summary: 'feat(scope): add new feature\nBREAKING CHANGE: something changed',
+        packagesChanged: [{ dir: 'packages/package1', packageJson: { name: 'package1' } }],
+      },
+      {
+        releases: [{ name: 'package2', type: 'major' }],
+        summary: 'fix(scope)!: fix a bug',
+        packagesChanged: [{ dir: 'packages/package2', packageJson: { name: 'package2' } }],
+      },
+    ]);
+  });
+
+  it('should return changesets with custom release rules based on config', () => {
+    const conventionalMessagesToCommits = [
+      {
+        commitHashes: ['hash1', 'hash2'],
+        changelogMessage: 'feat: update dependencies',
+      },
+      {
+        commitHashes: ['hash3', 'hash4'],
+        changelogMessage: 'docs: update documentation',
+      },
+    ];
+
+    const options = {
+      packages: [
+        { dir: 'packages/package1', packageJson: { name: 'package1' } },
+        { dir: 'packages/package2', packageJson: { name: 'package2' } },
+      ],
+      releaseRules: [
+        { type: 'feat', release: undefined },
+        { type: 'docs', release: 'major' as const },
+      ],
+    };
+
+    const result = conventionalMessagesWithCommitsToChangesets(conventionalMessagesToCommits, options);
+
+    expect(result).toEqual([
+      {
+        releases: [{ name: 'package2', type: 'major' }],
+        summary: 'docs: update documentation',
         packagesChanged: [{ dir: 'packages/package2', packageJson: { name: 'package2' } }],
       },
     ]);
