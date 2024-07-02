@@ -95,34 +95,52 @@ export const getRepoRoot = () => {
   return execSync('git rev-parse --show-toplevel').toString().trim().replace(/\n|\r/g, '');
 };
 
+export function filterFiles(files: string[], ignoredPatterns: (string | RegExp)[]): string[] {
+  return files.filter((file) => ignoredPatterns.every((pattern) => !file.match(pattern)));
+}
+
+export function getChangedPackages(filesChanged: string[], packages: ManyPkgPackage[]): ManyPkgPackage[] {
+  const repoRoot = getRepoRoot();
+  return packages.filter((pkg) => filesChanged.some((file) => file.match(pkg.dir.replace(`${repoRoot}/`, ''))));
+}
+
+export function determineReleaseType(changelogMessage: string): 'major' | 'minor' | 'patch' {
+  if (isBreakingChange(changelogMessage)) {
+    return 'major';
+  } else if (changelogMessage.startsWith('feat')) {
+    return 'minor';
+  } else {
+    return 'patch';
+  }
+}
+
 export const conventionalMessagesWithCommitsToChangesets = (
   conventionalMessagesToCommits: ConventionalMessagesToCommits[],
   options: { ignoredFiles?: (string | RegExp)[]; packages: ManyPkgPackage[] },
-) => {
+): Changeset[] => {
   const { ignoredFiles = [], packages } = options;
+
   return conventionalMessagesToCommits
     .map((entry) => {
-      const filesChanged = getFilesChangedSince({
-        from: entry.commitHashes[0],
-        to: entry.commitHashes[entry.commitHashes.length - 1],
-      }).filter((file) => {
-        return ignoredFiles.every((ignoredPattern) => !file.match(ignoredPattern));
-      });
-      const packagesChanged = packages.filter((pkg) => {
-        return filesChanged.some((file) => file.match(pkg.dir.replace(`${getRepoRoot()}/`, '')));
-      });
-      if (packagesChanged.length === 0) return null;
-      return {
-        releases: packagesChanged.map((pkg) => {
-          return {
-            name: pkg.packageJson.name,
-            type: isBreakingChange(entry.changelogMessage)
-              ? 'major'
-              : entry.changelogMessage.startsWith('feat')
-                ? 'minor'
-                : 'patch',
-          };
+      const filesChanged = filterFiles(
+        getFilesChangedSince({
+          from: entry.commitHashes[0],
+          to: entry.commitHashes[entry.commitHashes.length - 1],
         }),
+        ignoredFiles,
+      );
+
+      const packagesChanged = getChangedPackages(filesChanged, packages);
+
+      if (packagesChanged.length === 0) return null;
+
+      const releases = packagesChanged.map((pkg) => ({
+        name: pkg.packageJson.name,
+        type: determineReleaseType(entry.changelogMessage),
+      }));
+
+      return {
+        releases,
         summary: entry.changelogMessage,
         packagesChanged,
       };
